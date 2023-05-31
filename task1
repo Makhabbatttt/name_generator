@@ -1,0 +1,99 @@
+#code below written with Python
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import random
+
+dataset_path = "/Users/macbook/Desktop/dataset.txt"
+
+def preprocess_name(name):
+    processed_name = name.strip().lower()
+    return processed_name
+
+names = []
+with open(dataset_path, 'r') as file:
+    for line in file:
+        name = preprocess_name(line)
+        names.append(name)
+
+def create_bigrams(name):
+    name = '^' + name + '$'
+    bigrams = []
+    for i in range(len(name) - 1):
+        bigrams.append((name[i], name[i + 1]))
+    return bigrams
+
+letter2index = {'^': 0, '$': 1, 'a': 2, 'b': 3, 'c': 4, 'd': 5, 'e': 6, 'f': 7, 'g': 8, 'h': 9, 'i': 10, 'j': 11, 'k': 12, 'l': 13, 'm': 14, 'n': 15, 'o': 16, 'p': 17, 'q': 18, 'r': 19, 's': 20, 't': 21, 'u': 22, 'v': 23, 'w': 24, 'x': 25, 'y': 26, 'z': 27}
+index2letter = {0: '^', 1: '$', 2: 'a', 3: 'b', 4: 'c', 5: 'd', 6: 'e', 7: 'f', 8: 'g', 9: 'h', 10: 'i', 11: 'j', 12: 'k', 13: 'l', 14: 'm', 15: 'n', 16: 'o', 17: 'p', 18: 'q', 19: 'r', 20: 's', 21: 't', 22: 'u', 23: 'v', 24: 'w', 25: 'x', 26: 'y', 27: 'z'} 
+
+dataset_bigrams = []
+for name in names:
+    bigrams = create_bigrams(name)
+    dataset_bigrams.extend(bigrams)
+
+training_data = []  
+
+for bigram in dataset_bigrams:
+    input_index = letter2index[bigram[0]]
+    target_index = letter2index[bigram[1]]
+    training_data.append((input_index, target_index))
+
+class MyModel(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size):
+        super(MyModel, self).__init__()
+        self.hidden_size = hidden_size
+        
+        self.embedding = nn.Embedding(input_size, hidden_size)
+        self.gru = nn.GRU(hidden_size, hidden_size)
+        self.fc = nn.Linear(hidden_size, output_size)
+
+    def forward(self, x):
+        embedded = self.embedding(x)
+        output, hidden = self.gru(embedded.view(1, 1, -1))
+        output = self.fc(output.view(1, -1))
+        return output
+
+input_size = len(letter2index)
+hidden_size = 64
+output_size = len(letter2index)
+model = MyModel(input_size, hidden_size, output_size)
+
+loss_fn = nn.CrossEntropyLoss()
+
+optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+num_epochs = 10
+
+for epoch in range(num_epochs):
+    model.train()
+    for input_index, target_index in training_data:
+        input_tensor = torch.tensor([input_index], dtype=torch.long)
+        target_tensor = torch.tensor([target_index], dtype=torch.long)
+        
+        output = model(input_tensor)
+        
+        loss = loss_fn(output, target_tensor)
+        
+        optimizer.zero_grad()
+        
+        loss.backward()
+        
+        optimizer.step()
+        
+    print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item()}")
+
+
+max_length = 10
+start_letter = random.choice(list(letter2index.keys()))
+generated_name = start_letter
+
+while generated_name[-1] != "$" and len(generated_name) < max_length:
+    input_tensor = torch.tensor([letter2index[generated_name[-1]]], dtype=torch.long)
+    output = model(input_tensor)
+    _, predicted_index = torch.max(output, 1)
+    predicted_letter = index2letter[predicted_index.item()]
+    generated_name += predicted_letter
+
+generated_name = generated_name[1:-1]
+print("Generated Name:", generated_name)
