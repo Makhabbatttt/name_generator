@@ -1,4 +1,4 @@
-#code below written with Python
+#code below written with Python.
 
 import torch
 import torch.nn as nn
